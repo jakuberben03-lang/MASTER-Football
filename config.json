@@ -1,0 +1,47 @@
+{
+  "database_path": "data/master_football.db",
+  "feature_set_version": "master_team_features_v2.1",
+  "football_data": {
+    "base_url": "https://www.football-data.co.uk/mmz4281/{season}/{code}.csv",
+    "season_zip_url": "https://www.football-data.co.uk/mmz4281/{season}/data.zip",
+    "current_season": "2627",
+    "codes": [
+      "E0",
+      "E1",
+      "E2",
+      "E3",
+      "SC0",
+      "SC1",
+      "D1",
+      "D2",
+      "I1",
+      "I2",
+      "SP1",
+      "SP2",
+      "F1",
+      "F2",
+      "N1",
+      "B1",
+      "P1",
+      "T1",
+      "G1"
+    ]
+  },
+  "safety": {
+    "prediction_lock_immutable": true,
+    "out_of_domain_default": "PASS",
+    "provisional_max_verdict": "WATCH",
+    "unknown_source_freshness": "UNKNOWN"
+  },
+  "engine_version": "2.4.0",
+  "free_only_mode": true,
+  "stats_monitor": {
+    "provider": "API_FOOTBALL",
+    "prematch_window_minutes": 150,
+    "postmatch_delay_minutes": 105,
+    "postmatch_lookback_hours": 18,
+    "live_default": false,
+    "loop_interval_minutes": 60,
+    "quota_reserve_requests": 15
+  }
+}

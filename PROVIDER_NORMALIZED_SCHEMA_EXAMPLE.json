@@ -1,0 +1,47 @@
+{
+  "source": {
+    "name": "LICENSED_PROVIDER_NAME",
+    "source_type": "DATA_PROVIDER",
+    "base_url": "https://provider.example",
+    "authority_rank": 20,
+    "usage_notes": "Example only"
+  },
+  "capabilities": [
+    {"capability_key":"xg","coverage_scope":"PRODUCTION","timing_granularity":"POST_MATCH","license_class":"COMMERCIAL"},
+    {"capability_key":"lineups","coverage_scope":"PRODUCTION","timing_granularity":"EXACT","license_class":"COMMERCIAL"},
+    {"capability_key":"injuries","coverage_scope":"PRODUCTION","timing_granularity":"EXACT","license_class":"COMMERCIAL"}
+  ],
+  "fixture_packages": [
+    {
+      "source_fixture_key": "PROVIDER_FIXTURE_ID_ALREADY_LINKED",
+      "team_metrics": [
+        {"side":"HOME","metric_name":"xg","value":1.62,"availability_class":"POST_MATCH_SOURCE","source_record_key":"xg-home"},
+        {"side":"AWAY","metric_name":"xg","value":0.91,"availability_class":"POST_MATCH_SOURCE","source_record_key":"xg-away"}
+      ],
+      "lineups": [
+        {
+          "side":"HOME",
+          "lineup_status":"CONFIRMED",
+          "observed_at":"2026-08-12T17:02:00Z",
+          "confidence":"A",
+          "formation":"4-3-3",
+          "source_record_key":"home-confirmed-1702",
+          "members":[
+            {"source_player_key":"123","name":"Example Player","is_starting":true,"position":"LW","role":"WINGER","side":"LEFT"}
+          ]
+        }
+      ],
+      "availability": [
+        {
+          "side":"HOME",
+          "source_player_key":"123",
+          "name":"Example Player",
+          "status":"AVAILABLE",
+          "observed_at":"2026-08-12T15:00:00Z",
+          "confidence":"A",
+          "source_record_key":"availability-123-1500"
+        }
+      ]
+    }
+  ]
+}
