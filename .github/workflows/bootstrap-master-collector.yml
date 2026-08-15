@@ -80,8 +80,11 @@ jobs:
           rm -f MASTER_Collector_vNext_GITHUB_MOBILE.zip
           rm -f .github/workflows/bootstrap-master-collector.yml
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f MASTER_Collector_vNext_GITHUB_MOBILE.zip
+rm -f .github/workflows/master-collector-vnext.yml
+
+find . -type d -name "__pycache__" -prune -exec rm -rf {} +
+find . -type f -name "*.pyc" -delete
 
           git add -A
 
