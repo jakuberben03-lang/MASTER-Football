@@ -1,0 +1,154 @@
+name: MASTER Collector vNext
+
+on:
+  workflow_dispatch:
+    inputs:
+      deeper_odds:
+        description: "Collect h2h + totals (higher The Odds API credit use)"
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: master-collector-vnext
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+  THE_ODDS_API_KEY: ${{ secrets.THE_ODDS_API_KEY }}
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore latest collector state
+        uses: actions/cache/restore@v4
+        with:
+          path: runtime
+          key: master-collector-state-${{ github.run_id }}
+          restore-keys: |
+            master-collector-state-
+
+      - name: Prepare runtime
+        run: mkdir -p runtime/raw
+
+      - name: Run collector
+        shell: bash
+        run: |
+          set -euo pipefail
+          MARKETS="h2h"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.deeper_odds }}" == "true" ]]; then
+            MARKETS="h2h,totals"
+          fi
+          python scripts/run_collector_vnext.py \
+            --auto-bootstrap \
+            --current-odds \
+            --odds-markets "$MARKETS" \
+            --max-monitor-fixtures 12 \
+            | tee runtime/last_run.json
+
+      - name: Runtime integrity summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, sqlite3
+          from pathlib import Path
+
+          db=Path('runtime/collector_runtime.db')
+          print('db_exists=', db.exists(), 'size_bytes=', db.stat().st_size if db.exists() else 0)
+
+          if db.exists():
+              con=sqlite3.connect(db)
+              for table in [
+                  'fixtures',
+                  'lineup_snapshots',
+                  'injury_snapshots',
+                  'team_stat_snapshots',
+                  'player_stat_snapshots',
+                  'external_odds_observations'
+              ]:
+                  try:
+                      print(table, con.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0])
+                  except Exception as e:
+                      print(table, 'ERROR', e)
+
+          p=Path('runtime/last_run.json')
+          if p.exists():
+              try:
+                  d=json.loads(p.read_text())
+                  print('collector_status=', d.get('status'))
+                  print('betting_authority=', (d.get('status_report') or {}).get('betting_authority'))
+              except Exception as e:
+                  print('last_run_parse_error=', e)
+          PY
+
+      - name: Save updated collector state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: runtime
+          key: master-collector-state-${{ github.run_id }}
+
+      - name: Prune old collector caches
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+
+          repo=os.environ['GITHUB_REPOSITORY']
+
+          out=subprocess.run(
+              ['gh','api',f'/repos/{repo}/actions/caches?per_page=100'],
+              capture_output=True,
+              text=True
+          )
+
+          if out.returncode != 0:
+              print('cache prune skipped:', out.stderr.strip())
+              raise SystemExit(0)
+
+          caches=json.loads(out.stdout).get('actions_caches',[])
+          ours=[
+              c for c in caches
+              if str(c.get('key','')).startswith('master-collector-state-')
+          ]
+
+          ours.sort(
+              key=lambda c:c.get('created_at',''),
+              reverse=True
+          )
+
+          for c in ours[6:]:
+              subprocess.run(
+                  [
+                      'gh','api','--method','DELETE',
+                      f"/repos/{repo}/actions/caches/{c['id']}"
+                  ],
+                  check=False
+              )
+
+          print(
+              'collector caches kept=', min(6,len(ours)),
+              'deleted=', max(0,len(ours)-6)
+          )
+          PY
