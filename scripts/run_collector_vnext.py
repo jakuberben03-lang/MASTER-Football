@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from master_data.api_football_guard import install_api_football_guard, safe_bootstrap_api_fixtures
 from master_data.collector_runtime import (
-    bootstrap_api_fixtures,
     collect_football_data,
     collect_the_odds_api,
     monitor_api_fixtures,
@@ -20,6 +20,13 @@ from master_data.collector_runtime import (
     status_report,
     utcnow,
 )
+
+
+def _bootstrap_due(con) -> bool:
+    if should_bootstrap_today(con):
+        return True
+    row = con.execute("SELECT value FROM collector_meta WHERE key='last_bootstrap_status'").fetchone()
+    return row is None
 
 
 def main() -> int:
@@ -35,6 +42,7 @@ def main() -> int:
     ap.add_argument("--max-monitor-fixtures", type=int, default=12)
     args = ap.parse_args()
 
+    install_api_football_guard()
     con = open_db(args.db)
     started = utcnow()
     run_id = started.replace(":", "")
@@ -42,11 +50,11 @@ def main() -> int:
     con.commit()
     out: dict = {"started_at": started, "db": args.db, "raw_dir": args.raw_dir}
     try:
-        if args.bootstrap_fixtures or (args.auto_bootstrap and should_bootstrap_today(con)):
+        if args.bootstrap_fixtures or (args.auto_bootstrap and _bootstrap_due(con)):
             try:
-                out["fixture_bootstrap"] = bootstrap_api_fixtures(con, args.raw_dir)
+                out["fixture_bootstrap"] = safe_bootstrap_api_fixtures(con, args.raw_dir)
             except Exception as exc:
-                out["fixture_bootstrap"] = {"status": "SKIPPED_OR_FAILED", "error": f"{type(exc).__name__}: {exc}"}
+                out["fixture_bootstrap"] = {"status": "FAILED", "error": f"{type(exc).__name__}: {exc}"}
         else:
             out["fixture_bootstrap"] = {"status": "NOT_DUE"}
 
@@ -57,8 +65,9 @@ def main() -> int:
             out["the_odds_api"] = collect_the_odds_api(con, args.raw_dir, markets=args.odds_markets, max_sports=args.max_odds_sports)
         out["status_report"] = status_report(con)
         out["finished_at"] = utcnow()
-        out["status"] = "SUCCESS"
-        con.execute("UPDATE collector_runs SET finished_at=?,status='SUCCESS',details_json=? WHERE run_id=?", (out["finished_at"], json.dumps(out, ensure_ascii=False, default=str), run_id))
+        bootstrap_status = str((out.get("fixture_bootstrap") or {}).get("status") or "")
+        out["status"] = "DEGRADED" if bootstrap_status in {"FAILED", "EMPTY", "PARTIAL"} else "SUCCESS"
+        con.execute("UPDATE collector_runs SET finished_at=?,status=?,details_json=? WHERE run_id=?", (out["finished_at"], out["status"], json.dumps(out, ensure_ascii=False, default=str), run_id))
         con.commit()
         print(json.dumps(out, indent=2, ensure_ascii=False, default=str))
         return 0
