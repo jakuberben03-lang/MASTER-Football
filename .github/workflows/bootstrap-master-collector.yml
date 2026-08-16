@@ -1,4 +1,4 @@
-name: Bootstrap MASTER Collector
+name: Bootstrap MASTER API Football Guard
 
 on:
   workflow_dispatch:
@@ -7,8 +7,9 @@ permissions:
   contents: write
 
 jobs:
-  bootstrap:
+  patch:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -19,7 +20,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Extract verified MASTER package
+      - name: Verify and extract API-Football guard patch
         shell: bash
         run: |
           set -euo pipefail
@@ -27,71 +28,114 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           from zipfile import ZipFile
+          import hashlib
 
-          archive = Path("MASTER_Collector_vNext_GITHUB_MOBILE.zip")
+          archive = Path("MASTER_API_FOOTBALL_GUARD_PATCH.zip")
 
-          if not archive.is_file():
-              raise SystemExit(f"Missing deployment archive: {archive}")
+          expected_sha256 = (
+              "43dbbb27c11dccbf70988dd2ec5d2d995e1afe78efdb5281fe17b09d3a4d99c3"
+          )
 
-          expected = {
-              "master_data/__init__.py",
-              "master_data/collector_scope.py",
-              "master_data/collector_runtime.py",
+          expected_files = {
+              "master_data/api_football_guard.py",
               "scripts/run_collector_vnext.py",
-              "tests/test_collector_vnext.py",
-              ".github/workflows/master-collector-vnext.yml",
+              "tests/test_api_football_guard.py",
           }
 
-          with ZipFile(archive) as z:
-              actual = set(z.namelist())
+          if not archive.is_file():
+              raise SystemExit(
+                  f"Missing patch archive: {archive}"
+              )
 
-              if actual != expected:
+          actual_sha256 = hashlib.sha256(
+              archive.read_bytes()
+          ).hexdigest()
+
+          print("expected_sha256 =", expected_sha256)
+          print("actual_sha256   =", actual_sha256)
+
+          if actual_sha256 != expected_sha256:
+              raise SystemExit(
+                  "PATCH SHA256 MISMATCH - refusing deployment"
+              )
+
+          with ZipFile(archive) as z:
+              actual_files = set(z.namelist())
+
+              if actual_files != expected_files:
                   raise SystemExit(
-                      "Unexpected deployment package contents: "
-                      + repr(sorted(actual))
+                      "Unexpected patch contents: "
+                      + repr(sorted(actual_files))
                   )
 
               z.extractall(".")
 
-          print("MASTER Collector package extracted successfully.")
+          print("API-Football guard patch verified and extracted.")
           PY
 
-      - name: Validate collector
+      - name: Validate patched collector
         shell: bash
         run: |
           set -euo pipefail
 
-          python -m pip install --disable-pip-version-check -q pytest
+          python -m pip install \
+            --disable-pip-version-check \
+            -q pytest
 
           python -m py_compile \
             master_data/__init__.py \
             master_data/collector_scope.py \
             master_data/collector_runtime.py \
+            master_data/api_football_guard.py \
             scripts/run_collector_vnext.py \
-            tests/test_collector_vnext.py
+            tests/test_collector_vnext.py \
+            tests/test_api_football_guard.py
 
-          python -m pytest -q tests/test_collector_vnext.py
+          python -m pytest -q \
+            tests/test_collector_vnext.py \
+            tests/test_api_football_guard.py
 
-      - name: Commit MASTER Collector
+      - name: Commit API-Football guard patch
         shell: bash
         run: |
           set -euo pipefail
 
-          rm -f MASTER_Collector_vNext_GITHUB_MOBILE.zip
-          rm -f .github/workflows/master-collector-vnext.yml
+          rm -f MASTER_API_FOOTBALL_GUARD_PATCH.zip
 
-          find . -type d -name "__pycache__" -prune -exec rm -rf {} +
-          find . -type f -name "*.pyc" -delete
+          find . \
+            -type d \
+            -name "__pycache__" \
+            -prune \
+            -exec rm -rf {} +
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          find . \
+            -type f \
+            -name "*.pyc" \
+            -delete
 
-          git add -A
+          git config \
+            user.name \
+            "github-actions[bot]"
+
+          git config \
+            user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A -- \
+            MASTER_API_FOOTBALL_GUARD_PATCH.zip \
+            master_data/api_football_guard.py \
+            scripts/run_collector_vnext.py \
+            tests/test_api_football_guard.py
 
           if git diff --cached --quiet; then
             echo "Nothing to commit."
             exit 0
           fi
 
-          git commit -m "Deploy MASTER Collector vNext runtime"
+          echo "Files to deploy:"
+          git diff --cached --name-status
+
+          git commit \
+            -m "Apply API-Football guard patch"
+
           git push origin HEAD:main
